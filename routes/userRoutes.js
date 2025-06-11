@@ -15,15 +15,22 @@ router.get('/', async (req, res) => {
 });
 
 // POST create new user
+// POST /api/users
 router.post('/', async (req, res) => {
   const { username } = req.body;
-  if (!username) return res.status(400).json({ error: 'Username is required' });
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required' });
+  }
   try {
     const newUser = new User({ username });
-    await newUser.save();
-    res.json({ username: newUser.username, _id: newUser._id });
+    const savedUser = await newUser.save();
+
+    res.json({
+      username: savedUser.username,
+      _id: savedUser._id.toString()
+    });
   } catch (err) {
-    console.error('Error saving user:', err);
+    console.error('Error creating user:', err);
     res.status(500).json({ error: 'Error creating user' });
   }
 });
