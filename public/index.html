@@ -7,25 +7,55 @@
   <body class="container py-5">
     <h1 class="mb-4">Exercise Tracker</h1>
 
-    <form action="/api/users" method="post" class="mb-3">
+    <!-- Create New User -->
+    <form id="user-form" method="post" class="mb-3" action="/api/users">
       <input class="form-control mb-2" type="text" name="username" placeholder="New Username" required />
       <button class="btn btn-primary">Create User</button>
     </form>
 
-    <form action="/api/users/USER_ID/exercises" method="post" class="mb-3">
+    <!-- Add Exercise -->
+    <form id="exercise-form" method="post" class="mb-3">
       <input class="form-control mb-2" type="text" name="description" placeholder="Description" required />
       <input class="form-control mb-2" type="number" name="duration" placeholder="Duration (mins)" required />
       <input class="form-control mb-2" type="date" name="date" />
-      <input class="form-control mb-2" type="text" name="_id" placeholder="User ID" required />
+      <input class="form-control mb-2" type="text" id="exercise-user-id" placeholder="User ID" required />
       <button class="btn btn-success">Add Exercise</button>
     </form>
 
-    <form action="/api/users/USER_ID/logs" method="get">
-      <input class="form-control mb-2" type="text" name="_id" placeholder="User ID" required />
+    <!-- Get Logs -->
+    <form id="log-form" method="get" class="mb-3">
+      <input class="form-control mb-2" type="text" id="log-user-id" placeholder="User ID" required />
       <input class="form-control mb-2" type="date" name="from" />
       <input class="form-control mb-2" type="date" name="to" />
       <input class="form-control mb-2" type="number" name="limit" placeholder="Limit" />
       <button class="btn btn-info">Get Logs</button>
     </form>
+
+    <script>
+      const exerciseForm = document.getElementById('exercise-form');
+      const logForm = document.getElementById('log-form');
+
+      exerciseForm.addEventListener('submit', function (e) {
+        const idInput = document.getElementById('exercise-user-id');
+        const id = idInput.value.trim();
+        if (!id) {
+          alert('Please enter a User ID');
+          e.preventDefault();
+          return;
+        }
+        this.action = '/api/users/' + encodeURIComponent(id) + '/exercises';
+      });
+
+      logForm.addEventListener('submit', function (e) {
+        const idInput = document.getElementById('log-user-id');
+        const id = idInput.value.trim();
+        if (!id) {
+          alert('Please enter a User ID');
+          e.preventDefault();
+          return;
+        }
+        this.action = '/api/users/' + encodeURIComponent(id) + '/logs';
+      });
+    </script>
   </body>
 </html>

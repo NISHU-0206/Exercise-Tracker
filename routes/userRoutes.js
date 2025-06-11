@@ -1,85 +1,114 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const User = require('../models/User');
 const Exercise = require('../models/Exercise');
 
-// POST /api/users
-router.post('/api/users', async (req, res) => {
+// GET all users
+router.get('/', async (req, res) => {
   try {
-    const user = new User({ username: req.body.username });
-    await user.save();
-    res.json({ username: user.username, _id: user._id });
+    const users = await User.find({}, 'username _id');
+    res.json(users);
   } catch (err) {
+    res.status(500).json({ error: 'Error fetching users' });
+  }
+});
+
+// POST create new user
+router.post('/', async (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username is required' });
+  try {
+    const newUser = new User({ username });
+    await newUser.save();
+    res.json({ username: newUser.username, _id: newUser._id });
+  } catch (err) {
+    console.error('Error saving user:', err);
     res.status(500).json({ error: 'Error creating user' });
   }
 });
 
-// GET /api/users
-router.get('/api/users', async (req, res) => {
-  const users = await User.find({}, 'username _id');
-  res.json(users);
-});
+// POST add exercise to a user
+router.post('/:_id/exercises', async (req, res) => {
+  const { _id } = req.params;
 
-// POST /api/users/:_id/exercises
-router.post('/api/users/:_id/exercises', async (req, res) => {
+  // Validate the user ID
+  if (!mongoose.Types.ObjectId.isValid(_id)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
+
   const { description, duration, date } = req.body;
+  if (!description || !duration) {
+    return res.status(400).json({ error: 'Description and duration are required' });
+  }
+
   try {
-    const user = await User.findById(req.params._id);
+    const user = await User.findById(_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const exercise = new Exercise({
+    const exerciseDate = date ? new Date(date) : new Date();
+    const ex = new Exercise({
       userId: user._id,
       description,
       duration: parseInt(duration),
-      date: date ? new Date(date) : new Date()
+      date: exerciseDate
     });
-
-    await exercise.save();
+    await ex.save();
 
     res.json({
-      _id: user._id,
       username: user.username,
-      description: exercise.description,
-      duration: exercise.duration,
-      date: exercise.date.toDateString()
+      description: ex.description,
+      duration: ex.duration,
+      date: ex.date.toDateString(),
+      _id: user._id
     });
   } catch (err) {
+    console.error('Error adding exercise:', err);
     res.status(500).json({ error: 'Error adding exercise' });
   }
 });
 
-// GET /api/users/:_id/logs
-router.get('/api/users/:_id/logs', async (req, res) => {
+
+// GET user's exercise log
+router.get('/:_id/logs', async (req, res) => {
+  const { _id } = req.params;
   const { from, to, limit } = req.query;
-  const userId = req.params._id;
+
+  if (!mongoose.Types.ObjectId.isValid(_id)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
 
   try {
-    const user = await User.findById(userId);
+    const user = await User.findById(_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    let filter = { userId };
-    let dateFilter = {};
+    const filter = { userId: user._id };
+    if (from || to) {
+      filter.date = {};
+      if (from) filter.date.$gte = new Date(from);
+      if (to) filter.date.$lte = new Date(to);
+    }
 
-    if (from) dateFilter['$gte'] = new Date(from);
-    if (to) dateFilter['$lte'] = new Date(to);
-    if (from || to) filter.date = dateFilter;
+    let exercises = await Exercise.find(filter).sort({ date: 1 });
+    if (limit) {
+      exercises = exercises.slice(0, parseInt(limit));
+    }
 
-    let exercises = await Exercise.find(filter).limit(parseInt(limit) || 500);
-
-    const log = exercises.map(ex => ({
-      description: ex.description,
-      duration: ex.duration,
-      date: ex.date.toDateString()
+    const log = exercises.map(e => ({
+      description: e.description,
+      duration: e.duration,
+      date: e.date.toDateString()
     }));
 
     res.json({
+      _id: user._id,
       username: user.username,
       count: log.length,
-      _id: user._id,
       log
     });
   } catch (err) {
-    res.status(500).json({ error: 'Error fetching logs' });
+    console.error('Error retrieving logs:', err);
+    res.status(500).json({ error: 'Error retrieving logs' });
   }
 });
 
