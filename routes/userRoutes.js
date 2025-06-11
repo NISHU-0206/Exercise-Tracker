@@ -1,94 +1,85 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const User = require("../models/User");
+const User = require('../models/User');
+const Exercise = require('../models/Exercise');
 
 // POST /api/users
-router.post("/", async (req, res) => {
+router.post('/api/users', async (req, res) => {
   try {
-    const { username } = req.body;
-    const user = new User({ username });
-    const savedUser = await user.save();
-    res.json({ username: savedUser.username, _id: savedUser._id });
+    const user = new User({ username: req.body.username });
+    await user.save();
+    res.json({ username: user.username, _id: user._id });
   } catch (err) {
-    res.status(500).json({ error: "Failed to create user" });
+    res.status(500).json({ error: 'Error creating user' });
   }
 });
 
 // GET /api/users
-router.get("/", async (req, res) => {
-  try {
-    const users = await User.find({}, "username _id");
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to get users" });
-  }
+router.get('/api/users', async (req, res) => {
+  const users = await User.find({}, 'username _id');
+  res.json(users);
 });
 
-// POST /api/users/:id/exercises
-router.post("/:id/exercises", async (req, res) => {
+// POST /api/users/:_id/exercises
+router.post('/api/users/:_id/exercises', async (req, res) => {
+  const { description, duration, date } = req.body;
   try {
-    const { description, duration, date } = req.body;
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: "User not found" });
+    const user = await User.findById(req.params._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const exerciseDate = date ? new Date(date) : new Date();
-
-    const exercise = {
+    const exercise = new Exercise({
+      userId: user._id,
       description,
       duration: parseInt(duration),
-      date: exerciseDate
-    };
+      date: date ? new Date(date) : new Date()
+    });
 
-    user.log.push(exercise);
-    await user.save();
+    await exercise.save();
 
     res.json({
+      _id: user._id,
       username: user.username,
-      description,
-      duration: parseInt(duration),
-      date: exerciseDate.toDateString(),
-      _id: user._id
+      description: exercise.description,
+      duration: exercise.duration,
+      date: exercise.date.toDateString()
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to add exercise" });
+    res.status(500).json({ error: 'Error adding exercise' });
   }
 });
 
-// GET /api/users/:id/logs
-router.get("/:id/logs", async (req, res) => {
+// GET /api/users/:_id/logs
+router.get('/api/users/:_id/logs', async (req, res) => {
+  const { from, to, limit } = req.query;
+  const userId = req.params._id;
+
   try {
-    const { from, to, limit } = req.query;
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: "User not found" });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    let log = user.log;
+    let filter = { userId };
+    let dateFilter = {};
 
-    if (from) {
-      const fromDate = new Date(from);
-      log = log.filter(e => new Date(e.date) >= fromDate);
-    }
+    if (from) dateFilter['$gte'] = new Date(from);
+    if (to) dateFilter['$lte'] = new Date(to);
+    if (from || to) filter.date = dateFilter;
 
-    if (to) {
-      const toDate = new Date(to);
-      log = log.filter(e => new Date(e.date) <= toDate);
-    }
+    let exercises = await Exercise.find(filter).limit(parseInt(limit) || 500);
 
-    if (limit) {
-      log = log.slice(0, parseInt(limit));
-    }
+    const log = exercises.map(ex => ({
+      description: ex.description,
+      duration: ex.duration,
+      date: ex.date.toDateString()
+    }));
 
     res.json({
       username: user.username,
       count: log.length,
       _id: user._id,
-      log: log.map(e => ({
-        description: e.description,
-        duration: e.duration,
-        date: new Date(e.date).toDateString()
-      }))
+      log
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to get logs" });
+    res.status(500).json({ error: 'Error fetching logs' });
   }
 });
 
